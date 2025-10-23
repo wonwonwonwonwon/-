@@ -1,117 +1,9 @@
-// ========================================
-// Firebase SDK (Script Module)
-// ========================================
-
-// Firebase SDK 가져오기
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-// Firestore 로깅 활성화 (디버깅용)
-// setLogLevel('debug');
-
-// ========================================================================
-// 중요: Firebase 구성
-// GitHub Pages 등 외부 환경에 배포할 때는
-// 이 부분에 실제 Firebase 프로젝트의 구성 객체를 붙여넣어야 합니다.
-// (Firebase 콘솔 -> 프로젝트 설정 -> 일반 -> '내 앱'에서 확인)
-// ========================================================================
-const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
-};
-// ========================================================================
-
-// 앱 ID (Firestore 경로에 사용됩니다. Canvas 환경과 동일하게 유지하거나 고유 ID 사용)
-const appId = 'default-reading-map';
-
-// Firebase 앱, Firestore, Auth 초기화
-let app, db, auth;
-let userId;
-
-// Firebase 초기화 및 인증을 수행하는 비동기 함수
-async function initializeFirebase() {
-    try {
-        app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
-
-        // Firebase 인증 (외부 환경이므로 익명 로그인만 사용)
-        await signInAnonymously(auth);
-        console.log("Signed in anonymously.");
-        
-        userId = auth.currentUser?.uid || crypto.randomUUID();
-        console.log("User ID:", userId);
-        
-        // Firebase 초기화 성공 시 앱 로직 시작
-        initializeAppLogic();
-
-    } catch (e) {
-        console.error("Firebase initialization failed:", e);
-        // 페이지에 오류 메시지 표시
-        document.body.innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <strong class="font-bold">Firebase 연결 실패!</strong>
-            <span class="block sm:inline">서비스에 연결할 수 없습니다. 설정을 확인해주세요.</span>
-        </div>`;
-    }
-}
-
-// Firestore 컬렉션 경로 (공용 데이터)
-const collectionPath = `/artifacts/${appId}/public/data/reading_map_responses`;
-
-// Firestore 저장 함수
-async function saveReadingResponse(data) {
-    if (!db) {
-        console.error("Firestore is not initialized.");
-        return;
-    }
-    const responsesCollection = collection(db, collectionPath);
-    try {
-        const docRef = await addDoc(responsesCollection, {
-            ...data,
-            userId: userId,
-            createdAt: new Date().toISOString() // 타임스탬프
-        });
-        console.log("Document written with ID: ", docRef.id);
-        return docRef.id;
-    } catch (e) {
-        console.error("Error adding document: ", e);
-    }
-}
-
-// Firestore 모든 데이터 가져오기 함수
-async function getAllResponses() {
-    if (!db) {
-        console.error("Firestore is not initialized.");
-        return [];
-    }
-    const responsesCollection = collection(db, collectionPath);
-    try {
-        const querySnapshot = await getDocs(responsesCollection);
-        const responses = [];
-        querySnapshot.forEach((doc) => {
-            responses.push(doc.data());
-        });
-        console.log("Fetched all responses:", responses.length);
-        return responses;
-    } catch (e) {
-        console.error("Error fetching documents: ", e);
-        return [];
-    }
-}
-
-
-// ========================================
-// App Logic (General Script)
-// ========================================
-
-// DOMContentLoaded 대신 Firebase 초기화 후 이 함수를 호출합니다.
-function initializeAppLogic() {
+// DOMContentLoaded: HTML 문서를 모두 읽고 DOM 트리가 완성되면 실행됩니다.
+document.addEventListener('DOMContentLoaded', () => {
     
+    // !!! 중요: README.md 파일을 읽고, 배포된 자신의 Google Apps Script 웹 앱 URL로 변경하세요.
+    const WEB_APP_URL = 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+
     // 페이지 요소
     const pages = {
         start: document.getElementById('start-page'),
@@ -143,16 +35,50 @@ function initializeAppLogic() {
     });
 
     submitBtn.addEventListener('click', async () => {
-        if (validateAndSaveAllAnswers()) { // 전체 검증 함수로 변경
+        if (validateAndSaveAllAnswers()) { // 전체 검증 함수
             showPage('loading');
             
-            // Firebase에 데이터 저장 (전역 window 대신 직접 호출)
-            await saveReadingResponse(userData);
-            
-            // 모든 데이터 가져오기 (전역 window 대신 직접 호출)
-            let allResponses = await getAllResponses();
+            // 1. POST (데이터 저장)
+            try {
+                // userData는 validateAndSaveAllAnswers()에서 이미 채워짐
+                await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // 예제 스크립트의 방식을 따릅니다. (응답을 읽지 않음)
+                    cache: 'no-cache',
+                    redirect: 'follow',
+                    body: JSON.stringify(userData)
+                });
+                // no-cors 모드는 성공/실패 여부를 클라이언트에서 알 수 없으므로, 일단 성공으로 간주합니다.
+            } catch (error) {
+                console.error('Error submitting record:', error);
+                showError('데이터 저장에 실패했습니다. 인터넷 연결을 확인하세요.');
+                showPage('survey'); // 설문 페이지로 복귀
+                return; // 중단
+            }
 
-            // 1.5초 딜레이 (로딩 애니메이션 보여주기용)
+            // 2. GET (모든 데이터 불러오기)
+            let allResponses = [];
+            try {
+                // (선택) POST 요청 후 Apps Script가 시트에 반영할 약간의 시간을 줍니다.
+                await new Promise(resolve => setTimeout(resolve, 1000)); 
+
+                const response = await fetch(WEB_APP_URL, { method: 'GET', redirect: 'follow' });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                allResponses = await response.json();
+
+                if (!Array.isArray(allResponses)) {
+                    console.error("Error data received from Google Apps Script:", allResponses);
+                    throw new Error('Google Apps Script에서 응답 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('Error loading records:', error);
+                showError('데이터를 불러오는 데 실패했습니다. Apps Script 설정을 확인하세요.');
+                showPage('survey'); // 설문 페이지로 복귀
+                return; // 중단
+            }
+            
+            // 3. 리포트 생성 (로딩 애니메이션을 위해 1.5초 대기)
             setTimeout(() => {
                 generateReport(allResponses);
                 showPage('report');
@@ -335,29 +261,30 @@ function initializeAppLogic() {
 
         allResponses.forEach(res => {
             // 세대별 빈도
-            if (res.age && res.frequency && ageFreqData[res.age] && ageFreqData[res.age].hasOwnProperty(res.frequency)) {
-                ageFreqData[res.age][res.frequency]++;
+            if (res.Age && res.Frequency && ageFreqData[res.Age] && ageFreqData[res.Age].hasOwnProperty(res.Frequency)) {
+                ageFreqData[res.Age][res.Frequency]++;
             }
             // 형식
-            if (res.format && formatData.hasOwnProperty(res.format)) {
-                formatData[res.format]++;
+            if (res.Format && formatData.hasOwnProperty(res.Format)) {
+                formatData[res.Format]++;
             }
             // 빈도
-            if (res.frequency && freqData.hasOwnProperty(res.frequency)) {
-                freqData[res.frequency]++;
+            if (res.Frequency && freqData.hasOwnProperty(res.Frequency)) {
+                freqData[res.Frequency]++;
             }
             // 장르 (배열)
-            if (res.genres && Array.isArray(res.genres)) {
-                res.genres.forEach(genre => {
+            // Apps Script (doGet)에서 이미 배열로 변환해줍니다.
+            if (res.Genres && Array.isArray(res.Genres)) {
+                res.Genres.forEach(genre => {
                     genreData[genre] = (genreData[genre] || 0) + 1;
                 });
             }
             // 인생책
-            if (res.bookTitle) {
+            if (res.BookTitle) {
                 bookBoardData.push({
-                    nickname: res.nickname || '익명',
-                    title: res.bookTitle,
-                    reason: res.bookReason || ''
+                    nickname: res.Nickname || '익명',
+                    title: res.BookTitle,
+                    reason: res.BookReason || ''
                 });
             }
         });
@@ -482,7 +409,7 @@ function initializeAppLogic() {
         if (bookBoardData.length === 0) {
             bookBoardEl.innerHTML = '<p class="text-gray-500 text-center">아직 등록된 인생책이 없습니다.</p>';
         } else {
-            // 최신순으로 정렬 (Firestore에 저장된 데이터는 순서가 보장되지 않을 수 있으나, 여기서는 그냥 추가)
+            // 최신순으로 정렬 (Apps Script doGet에서 이미 최신순으로 가져올 수 있지만, 만일을 대비해 JS에서도 정렬)
             bookBoardData.reverse().forEach(book => {
                 const bookEl = document.createElement('div');
                 bookEl.className = 'bg-white p-4 rounded-lg shadow';
@@ -499,8 +426,5 @@ function initializeAppLogic() {
 
     // --- 초기화 ---
     showPage('start'); // 앱 로드 시 시작 페이지 표시
-}
-
-// Firebase 초기화를 시작합니다.
-initializeFirebase();
+});
 
