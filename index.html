@@ -99,12 +99,24 @@
             </form>
 
             <section class="stats-section">
-                <h3>전체 응답 통계</h3>
-                <div class="chart-container">
-                    <canvas id="format-chart"></canvas>
+                <h2>전체 응답 통계</h2>
+                
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <h3>독서 형식 선호도</h3>
+                        <canvas id="format-chart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>장르별 인기 비율</h3>
+                        <canvas id="genre-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container-full">
+                    <h3>세대별 독서 빈도</h3>
+                    <canvas id="age-frequency-chart"></canvas>
                 </div>
             </section>
-
             <section class="records-section">
                 <div class="section-header">
                     <h2>인생책 게시판</h2>
