@@ -10,18 +10,24 @@ import { getFirestore, collection, addDoc, getDocs, setLogLevel } from "https://
 // Firestore 로깅 활성화 (디버깅용)
 // setLogLevel('debug');
 
-// Firebase 구성
-// __firebase_config 변수는 Canvas 환경에서 자동으로 주입됩니다.
-let firebaseConfig;
-try {
-    firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-} catch (e) {
-    console.error("Firebase config parsing error:", e);
-    firebaseConfig = {}; // 기본값
-}
+// ========================================================================
+// 중요: Firebase 구성
+// GitHub Pages 등 외부 환경에 배포할 때는
+// 이 부분에 실제 Firebase 프로젝트의 구성 객체를 붙여넣어야 합니다.
+// (Firebase 콘솔 -> 프로젝트 설정 -> 일반 -> '내 앱'에서 확인)
+// ========================================================================
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_STORAGE_BUCKET",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID"
+};
+// ========================================================================
 
-// __app_id 변수는 Canvas 환경에서 자동으로 주입됩니다.
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-reading-map';
+// 앱 ID (Firestore 경로에 사용됩니다. Canvas 환경과 동일하게 유지하거나 고유 ID 사용)
+const appId = 'default-reading-map';
 
 // Firebase 앱, Firestore, Auth 초기화
 let app, db, auth;
@@ -34,14 +40,10 @@ async function initializeFirebase() {
         db = getFirestore(app);
         auth = getAuth(app);
 
-        // Firebase 인증 (Canvas 환경 또는 익명)
-        if (typeof __initial_auth_token !== 'undefined') {
-            await signInWithCustomToken(auth, __initial_auth_token);
-            console.log("Signed in with custom token.");
-        } else {
-            await signInAnonymously(auth);
-            console.log("Signed in anonymously.");
-        }
+        // Firebase 인증 (외부 환경이므로 익명 로그인만 사용)
+        await signInAnonymously(auth);
+        console.log("Signed in anonymously.");
+        
         userId = auth.currentUser?.uid || crypto.randomUUID();
         console.log("User ID:", userId);
         
@@ -53,7 +55,7 @@ async function initializeFirebase() {
         // 페이지에 오류 메시지 표시
         document.body.innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
             <strong class="font-bold">Firebase 연결 실패!</strong>
-            <span class="block sm:inline">서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.</span>
+            <span class="block sm:inline">서비스에 연결할 수 없습니다. 설정을 확인해주세요.</span>
         </div>`;
     }
 }
@@ -501,3 +503,4 @@ function initializeAppLogic() {
 
 // Firebase 초기화를 시작합니다.
 initializeFirebase();
+
