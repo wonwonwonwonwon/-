@@ -1,0 +1,67 @@
+/* Noto Sans KR 폰트를 기본으로 적용 */
+body {
+    font-family: 'Noto Sans KR', 'Inter', sans-serif;
+}
+/* 페이지 전환을 위한 기본 스타일 */
+.page {
+    display: none; /* 기본적으로 모든 페이지 숨김 */
+}
+.page.active {
+    display: block; /* active 클래스가 있는 페이지만 표시 */
+}
+/* 커스텀 선택 버튼 */
+.choice-btn {
+    display: block;
+    width: 100%;
+    padding: 1rem;
+    border-width: 1px;
+    border-color: #d1d5db; /* border-gray-300 */
+    border-radius: 0.5rem; /* rounded-lg */
+    cursor: pointer;
+    margin-bottom: 0.75rem; /* mb-3 */
+    text-align: left;
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.choice-btn:hover {
+    background-color: #f9fafb; /* hover:bg-gray-50 */
+}
+/* 선택된 버튼 스타일 */
+.choice-btn.selected {
+    background-color: #2563eb; /* bg-blue-600 */
+    color: #ffffff; /* text-white */
+    border-color: #2563eb; /* border-blue-600 */
+    /* shadow-lg */
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+    /* scale-105 */
+    transform: scale(1.05);
+}
+/* 로딩 스피너 */
+.loader {
+    border: 8px solid #f3f3f3;
+    border-top: 8px solid #3b82f6;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+/* 차트 컨테이너 */
+.chart-container {
+    background-color: #ffffff; /* bg-white */
+    padding: 1.5rem; /* p-6 */
+    border-radius: 0.5rem; /* rounded-lg */
+    /* shadow-md */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+/* 이모지 간격 */
+.choice-btn span {
+    margin-right: 8px; /* 이모지와 텍스트 사이 간격 */
+}

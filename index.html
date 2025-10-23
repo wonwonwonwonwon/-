@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>리딩 맵 (Reading Map): 독서 진단 서비스</title>
+    <!-- Tailwind CSS CDN --><script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN --><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts: Inter --><link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- 분리된 CSS 파일 로드 -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-3xl mx-auto">
+        
+        <!-- ======================================== --><!-- 1. 시작 페이지 (Start Page) --><!-- ======================================== --><div id="start-page" class="page active bg-white p-8 md:p-12 rounded-xl shadow-2xl text-center">
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-800 mb-4">리딩 맵 (Reading Map)</h1>
+            <p class="text-lg text-gray-600 mb-8">
+                당신의 독서 속도와 취향을 진단해 드립니다.
+            </p>
+            <p class="text-md text-gray-500 mb-10">
+                간단한 설문을 통해 '나만의 독서 리포트'를 확인하고,
+                다른 사람들의 독서 습관과 비교해보세요! (약 2~3분 소요)
+            </p>
+            <button id="start-btn" class="w-full md:w-1/2 bg-blue-600 text-white font-bold py-4 px-8 rounded-lg text-xl hover:bg-blue-700 transition-transform hover:scale-105">
+                진단 시작하기
+            </button>
+        </div>
+
+        <!-- ======================================== --><!-- 2. 설문 페이지 (Survey Page) --><!-- ======================================== --><div id="survey-page" class="page bg-white p-8 md:p-12 rounded-xl shadow-2xl">
+            <!-- 에러 메시지 --><div id="error-message" class="hidden text-red-500 text-center mb-6 font-semibold sticky top-4 bg-white py-3 z-10 shadow-sm rounded-lg border border-red-200"></div>
+
+            <!-- 질문 컨테이너 --><div id="question-container">
+                
+                <!-- Q1: 닉네임 --><div class="mb-8">
+                    <h2 class="text-2xl font-bold mb-6">Q1. 리포트에 사용할 닉네임을 입력해주세요.</h2>
+                    <input type="text" id="q1-nickname" class="w-full p-4 border border-gray-300 rounded-lg text-lg" placeholder="예: 책읽는곰" required>
+                </div>
+
+                <!-- Q2: 나이대 --><div class="mb-8">
+                    <h2 class="text-2xl font-bold mb-6">Q2. 귀하의 나이대는 어떻게 되십니까?</h2>
+                    <div id="q2-age">
+                        <button class="choice-btn text-lg" data-value="10대"><span>👶</span>10대</button>
+                        <button class="choice-btn text-lg" data-value="20대"><span>🧑</span>20대</button>
+                        <button class="choice-btn text-lg" data-value="30대"><span>👨</span>30대</button>
+                        <button class="choice-btn text-lg" data-value="40대 이상"><span>👴</span>40대 이상</button>
+                    </div>
+                </div>
+
+                <!-- Q3: 독서 빈도 --><div class="mb-8">
+                    <h2 class="text-2xl font-bold mb-6">Q3. 독서 빈도는 어느정도입니까?</h2>
+                    <div id="q3-frequency">
+                        <button class="choice-btn text-lg" data-value="월 1회 미만"><span>😴</span>월 1회 미만</button>
+                        <button class="choice-btn text-lg" data-value="월 1~2회"><span>📖</span>월 1~2회</button>
+                        <button class="choice-btn text-lg" data-value="월 3~4회"><span>📚</span>월 3~4회</button>
+                        <button class="choice-btn text-lg" data-value="주 1회 이상"><span>🔥</span>주 1회 이상</button>
+                    </div>
+                </div>
+
+                <!-- Q4: 독서 목적 --><div class="mb-8">
+                    <h2 class="text-2xl font-bold mb-6">Q4. 독서를 하는 목적은 무엇입니까?</h2>
+                    <div id="q4-purpose">
+                        <button class="choice-btn text-lg" data-value="지식 습득"><span>💡</span>지식 습득</button>
+                        <button class="choice-btn text-lg" data-value="휴식"><span>😌</span>휴식</button>
+                        <button class="choice-btn text-lg" data-value="영감"><span>✨</span>영감</button>
+                        <button class="choice-btn text-lg" data-value="기타"><span>🤔</span>기타</button>
+                    </div>
+                </div>
+
+                <!-- Q5: 선호 분야 (최대 3개) --><div class="mb-8">
+                    <h2 class="text-2xl font-bold mb-6">Q5. 주로 선호하는 독서 분야는 무엇입니까? (최대 3개)</h2>
+                    <p id="genre-count" class="text-gray-600 mb-4">선택한 개수: 0 / 3</p>
+                    <div id="q5-genre" class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        <button class="choice-btn" data-value="소설"><span>✍️</span>소설</button>
+                        <button class="choice-btn" data-value="시/에세이"><span>💌</span>시/에세이</button>
+                        <button class="choice-btn" data-value="자기계발"><span>🌱</span>자기계발</button>
+                        <button class="choice-btn" data-value="인문"><span>👨‍🎓</span>인문</button>
+                        <button class="choice-btn" data-value="사회"><span>🌍</span>사회</button>
+                        <button class="choice-btn" data-value="역사/문화"><span>🏛️</span>역사/문화</button>
+                        <button class="choice-btn" data-value="철학"><span>🧐</span>철학</button>
+                        <button class="choice-btn" data-value="종교"><span>🙏</span>종교</button>
+                        <button class="choice-btn" data-value="과학"><span>🔬</span>과학</button>
+                        <button class="choice-btn" data-value="예술/디자인"><span>🎨</span>예술/디자인</button>
+                        <button class="choice-btn" data-value="경제/경영"><span>💰</span>경제/경영</button>
+                        <button class="choice-btn" data-value="여행"><span>✈️</span>여행</button>
+                        <button class="choice-btn" data-value="요리"><span>🧑‍🍳</span>요리</button>
+                        <button class="choice-btn" data-value="육아"><span>👨‍👩‍👧‍👦</span>육아</button>
+                    </div>
+                </div>
+
+                <!-- Q6: 독서 형식 --><div class="mb-8">
+                    <h2 class="text-2xl font-bold mb-6">Q6. 선호하는 독서 형식은 무엇입니까?</h2>
+                    <div id="q6-format">
+                        <button class="choice-btn text-lg" data-value="종이책"><span>📜</span>종이책</button>
+                        <button class="choice-btn text-lg" data-value="전자책"><span>📱</span>전자책</button>
+                        <button class="choice-btn text-lg" data-value="종이책 + 전자책"><span>📚📱</span>종이책 + 전자책</button>
+                        <button class="choice-btn text-lg" data-value="기타"><span>❓</span>기타</button>
+                    </div>
+                </div>
+
+                <!-- Q7: 인생책 --><div class="mb-8">
+                    <h2 class="text-2xl font-bold mb-6">Q7. 당신의 인생책 또는 추천책이 있다면? (선택)</h2>
+                    <input type="text" id="q7-book-title" class="w-full p-4 border border-gray-300 rounded-lg text-lg mb-4" placeholder="책 제목">
+                    <textarea id="q7-book-reason" class="w-full p-4 border border-gray-300 rounded-lg text-lg" rows="5" placeholder="추천 이유, 줄거리, 인상 깊은 구절 등 자유롭게 작성해주세요."></textarea>
+                </div>
+            </div>
+
+            <!-- 네비게이션 버튼 --><div class="mt-10 flex justify-center">
+                <button id="submit-btn" class="w-full md:w-1/2 bg-green-600 text-white font-bold py-4 px-8 rounded-lg text-xl hover:bg-green-700 transition-all">결과 확인하기</button>
+            </div>
+        </div>
+
+        <!-- ======================================== --><!-- 3. 로딩 페이지 (Loading Page) --><!-- ======================================== --><div id="loading-page" class="page bg-white p-8 md:p-12 rounded-xl shadow-2xl text-center">
+            <div class="flex flex-col items-center justify-center min-h-[300px]">
+                <!-- 3D 책 아이콘 또는 이모지 --><!-- SVG 아이콘 (3D 느낌을 주지는 않지만, 시각적 효과는 줍니다) --><svg class="w-24 h-24 text-blue-500 mb-6 animate-bounce" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path fill-rule="evenodd" d="M6 3a3 3 0 00-3 3v12a3 3 0 003 3h12a3 3 0 003-3V6a3 3 0 00-3-3H6zm1.5 1.5a.75.75 0 000 1.5h.008v-.008H7.5zm.75 2.25a.75.75 0 000 1.5h.008v-.008H8.25zm-.75 2.25a.75.75 0 000 1.5h.008v-.008H7.5zM12 9a.75.75 0 000 1.5h.008V9H12zm.75 2.25a.75.75 0 000 1.5h.008v-.008H12.75zm-.75 2.25a.75.75 0 000 1.5h.008v-.008H12zM16.5 9a.75.75 0 000 1.5h.008V9h-.008zm.75 2.25a.75.75 0 000 1.5h.008v-.008H17.25zm-.75 2.25a.75.75 0 000 1.5h.008v-.008H16.5z" />
+                </svg>
+                <!-- 또는 이모지: <span class="text-7xl mb-6 animate-bounce">📚</span> --><div class="loader mb-8"></div>
+                <h2 class="text-3xl font-bold text-gray-800 mb-4">리포트 생성 중...</h2>
+                <p class="text-lg text-gray-600">
+                    당신의 독서 데이터를 분석하고 있습니다.<br>
+                    다른 응답자들의 데이터와 비교 중입니다.
+                </p>
+            </div>
+        </div>
+
+        <!-- ======================================== --><!-- 4. 리포트 페이지 (Report Page) --><!-- ======================================== --><div id="report-page" class="page bg-white p-8 md:p-12 rounded-xl shadow-2xl">
+            <h1 class="text-4xl font-bold text-center mb-4"><span id="report-nickname" class="text-blue-600"></span>님의 독서 리포트</h1>
+            <p class="text-lg text-center text-gray-600 mb-10">총 <span id="total-participants" class="font-bold"></span>명의 데이터와 비교한 결과입니다.</p>
+
+            <!-- 나의 독서 빈도 --><div class="mb-10">
+                <h2 class="text-2xl font-bold mb-4">📊 나의 독서 빈도 vs 전체</h2>
+                <div class="chart-container">
+                    <p class="text-center mb-4">
+                        당신의 독서 빈도는 '<span id="my-frequency" class="font-bold text-blue-600"></span>' 입니다.
+                    </p>
+                    <canvas id="chart-my-freq"></canvas>
+                </div>
+            </div>
+
+            <!-- 세대별 독서 빈도 --><div class="mb-10">
+                <h2 class="text-2xl font-bold mb-4">📊 세대별 독서 빈도 차이</h2>
+                <div class="chart-container">
+                    <canvas id="chart-age-freq"></canvas>
+                </div>
+            </div>
+
+            <!-- 차트 그리드 (선호 형식, 장르) --><div class="grid grid-cols-1 md:grid-cols-2 gap-10 mb-10">
+                <div>
+                    <h2 class="text-2xl font-bold mb-4">📊 독서 형식 선호도</h2>
+                    <div class="chart-container h-[400px] flex justify-center items-center">
+                        <canvas id="chart-format"></canvas>
+                    </div>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold mb-4">📊 장르별 인기 순위</h2>
+                    <div class="chart-container h-[400px]">
+                        <canvas id="chart-genre"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 인생책 게시판 --><div class="mb-10">
+                <h2 class="text-2xl font-bold mb-4">📚 모두의 인생책 게시판</h2>
+                <div id="book-board" class="space-y-4 max-h-[500px] overflow-y-auto bg-gray-50 p-6 rounded-lg shadow-inner">
+                    <!-- JS로 동적 생성 -->
+                </div>
+            </div>
+            
+            <button id="retry-btn" class="w-full bg-gray-600 text-white font-bold py-4 px-8 rounded-lg text-xl hover:bg-gray-700 transition-all">
+                다시하기
+            </button>
+        </div>
+    </div>
+
+    <!-- 분리된 JavaScript 파일 로드 (module 타입) -->
+    <script type="module" src="script.js" defer></script>
+
+</body>
+</html>
