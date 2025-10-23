@@ -1,430 +1,179 @@
-// DOMContentLoaded: HTML 문서를 모두 읽고 DOM 트리가 완성되면 실행됩니다.
 document.addEventListener('DOMContentLoaded', () => {
-    
     // !!! 중요: README.md 파일을 읽고, 배포된 자신의 Google Apps Script 웹 앱 URL로 변경하세요.
-    const WEB_APP_URL = 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzjscbyQFNYxSsWrSk_jLm37y04s8iYmCLCcJVrQVvOUqOpYAmF7Yzv2dM5PzKT-RTP/exec'; // <--- 이 URL을 본인의 URL로 변경하세요.
 
-    // 페이지 요소
-    const pages = {
-        start: document.getElementById('start-page'),
-        survey: document.getElementById('survey-page'),
-        loading: document.getElementById('loading-page'),
-        report: document.getElementById('report-page')
+    const recordForm = document.getElementById('record-form');
+    const recordsContainer = document.getElementById('records-container');
+    const exportButton = document.getElementById('export-excel');
+    // 캔버스 ID 변경 (mood-chart -> format-chart)
+    const formatChartCanvas = document.getElementById('format-chart');
+    let recordsCache = []; // 데이터 캐싱
+    let formatChart; // 차트 변수명 변경
+
+    // 페이지 로드 시 날짜 설정 관련 코드 제거 (새 폼에는 날짜 필드 없음)
+
+    // 데이터 로드 및 화면 업데이트
+    const loadRecords = async () => {
+        try {
+            const response = await fetch(WEB_APP_URL, { method: 'GET', redirect: 'follow' });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            recordsCache = await response.json();
+
+            // 서버에서 받은 데이터가 배열인지 확인합니다. 배열이 아니면 Apps Script 에러일 가능성이 높습니다.
+            if (!Array.isArray(recordsCache)) {
+                console.error("Error data received from Google Apps Script:", recordsCache);
+                throw new Error('Google Apps Script에서 에러가 발생했습니다. 개발자 도구(F12)의 Console 탭에서 상세 정보를 확인하세요.');
+            }
+            
+            recordsContainer.innerHTML = '<p>데이터를 불러오는 중...</p>';
+            // 최신순으로 정렬 (Timestamp는 Google Sheet에서 자동 생성된다고 가정)
+            recordsCache.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
+            
+            recordsContainer.innerHTML = ''; // 로딩 메시지 제거
+            // '인생책'을 기재한 응답만 게시판에 표시 (선택 사항)
+            recordsCache.filter(r => r.bookTitle && r.bookTitle !== '없음').forEach(addRecordToDOM);
+            // 전체 데이터를 차트에 렌더링
+            renderFormatChart(); // 함수명 변경
+
+        } catch (error) {
+            console.error('Error loading records:', error);
+            recordsContainer.innerHTML = `<p style="color: red;">데이터를 불러오는 데 실패했습니다. README.md 파일을 확인하여 설정을 완료했는지 확인하세요.</p>`;
+        }
     };
 
-    const startBtn = document.getElementById('start-btn');
-    const submitBtn = document.getElementById('submit-btn');
-    const retryBtn = document.getElementById('retry-btn');
-    const errorMessage = document.getElementById('error-message');
-    
-    let userData = {}; // 사용자 응답 저장 객체
-    let chartInstances = {}; // 차트 인스턴스 저장
+    // DOM에 기록 목록 행 추가 (인생책 게시판용으로 수정)
+    const addRecordToDOM = (record) => {
+        const row = document.createElement('div');
+        row.classList.add('record-row');
 
-    // --- 페이지 네비게이션 ---
+        // 새 기획안에 맞게 표시할 데이터로 변경
+        // (record.nickname, record.bookTitle, record.bookReason, record.age, record.frequency)
+        row.innerHTML = `
+            <div class="record-nickname">${record.nickname || '-'}</div>
+            <div class="record-book-title" title="${record.bookTitle}">${record.bookTitle || '-'}</div>
+            <div class="record-book-reason" title="${record.bookReason}">${record.bookReason || '-'}</div>
+            <div class="record-age">${record.age || '-'}</div>
+            <div class="record-frequency">${record.frequency || '-'}</div>
+        `;
+        recordsContainer.appendChild(row);
+    };
 
-    function showPage(pageId) {
-        Object.values(pages).forEach(page => page.classList.remove('active'));
-        pages[pageId].classList.add('active');
-    }
-
-    // --- 이벤트 리스너 ---
-
-    startBtn.addEventListener('click', () => {
-        showPage('survey');
-        window.scrollTo(0, 0); // 페이지 상단으로 스크롤
-    });
-
-    submitBtn.addEventListener('click', async () => {
-        if (validateAndSaveAllAnswers()) { // 전체 검증 함수
-            showPage('loading');
-            
-            // 1. POST (데이터 저장)
-            try {
-                // userData는 validateAndSaveAllAnswers()에서 이미 채워짐
-                await fetch(WEB_APP_URL, {
-                    method: 'POST',
-                    mode: 'no-cors', // 예제 스크립트의 방식을 따릅니다. (응답을 읽지 않음)
-                    cache: 'no-cache',
-                    redirect: 'follow',
-                    body: JSON.stringify(userData)
-                });
-                // no-cors 모드는 성공/실패 여부를 클라이언트에서 알 수 없으므로, 일단 성공으로 간주합니다.
-            } catch (error) {
-                console.error('Error submitting record:', error);
-                showError('데이터 저장에 실패했습니다. 인터넷 연결을 확인하세요.');
-                showPage('survey'); // 설문 페이지로 복귀
-                return; // 중단
+    // '독서 형식 선호도' 통계 차트 렌더링 (기존 renderMoodChart에서 수정)
+    const renderFormatChart = () => {
+        // record.Mood 대신 record.format 기준으로 카운트
+        const formatCounts = recordsCache.reduce((acc, record) => {
+            if (record.format) { // 데이터가 있는 경우에만
+                acc[record.format] = (acc[record.format] || 0) + 1;
             }
+            return acc;
+        }, {});
 
-            // 2. GET (모든 데이터 불러오기)
-            let allResponses = [];
-            try {
-                // (선택) POST 요청 후 Apps Script가 시트에 반영할 약간의 시간을 줍니다.
-                await new Promise(resolve => setTimeout(resolve, 1000)); 
+        const chartData = {
+            labels: Object.keys(formatCounts),
+            datasets: [{
+                label: '독서 형식',
+                data: Object.values(formatCounts),
+                backgroundColor: ['#FFC107', '#FF7043', '#8BC34A', '#2196F3', '#9C27B0'],
+                hoverOffset: 4
+            }]
+        };
 
-                const response = await fetch(WEB_APP_URL, { method: 'GET', redirect: 'follow' });
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                
-                allResponses = await response.json();
-
-                if (!Array.isArray(allResponses)) {
-                    console.error("Error data received from Google Apps Script:", allResponses);
-                    throw new Error('Google Apps Script에서 응답 오류가 발생했습니다.');
-                }
-            } catch (error) {
-                console.error('Error loading records:', error);
-                showError('데이터를 불러오는 데 실패했습니다. Apps Script 설정을 확인하세요.');
-                showPage('survey'); // 설문 페이지로 복귀
-                return; // 중단
-            }
-            
-            // 3. 리포트 생성 (로딩 애니메이션을 위해 1.5초 대기)
-            setTimeout(() => {
-                generateReport(allResponses);
-                showPage('report');
-            }, 1500);
-        }
-    });
-
-    retryBtn.addEventListener('click', () => {
-        // 재설정
-        userData = {};
-        // 모든 차트 파괴
-        Object.values(chartInstances).forEach(chart => chart.destroy());
-        chartInstances = {};
-        // 모든 선택 해제
-        document.querySelectorAll('.choice-btn.selected').forEach(btn => btn.classList.remove('selected'));
-        document.getElementById('q1-nickname').value = '';
-        document.getElementById('q7-book-title').value = '';
-        document.getElementById('q7-book-reason').value = '';
-        // 시작 페이지로 이동
-        showPage('start');
-    });
-
-    // --- 선택 버튼 (라디오/체크박스) 로직 ---
-
-    // 라디오 버튼처럼 동작하는 그룹 (Q2, Q3, Q4, Q6)
-    ['#q2-age', '#q3-frequency', '#q4-purpose', '#q6-format'].forEach(groupId => {
-        document.querySelector(groupId)?.addEventListener('click', (e) => {
-            const btn = e.target.closest('.choice-btn');
-            if (!btn) return;
-            
-            // 같은 그룹 내 다른 버튼 선택 해제
-            document.querySelectorAll(`${groupId} .choice-btn`).forEach(b => b.classList.remove('selected'));
-            // 현재 버튼 선택
-            btn.classList.add('selected');
-        });
-    });
-
-    // 체크박스처럼 동작하는 그룹 (Q5 - 장르, 최대 3개)
-    const genreContainer = document.getElementById('q5-genre');
-    const genreCountEl = document.getElementById('genre-count');
-    const MAX_GENRES = 3;
-
-    genreContainer.addEventListener('click', (e) => {
-        const btn = e.target.closest('.choice-btn');
-        if (!btn) return;
-
-        const selectedGenres = genreContainer.querySelectorAll('.choice-btn.selected').length;
-        
-        if (btn.classList.contains('selected')) {
-            // 선택 해제
-            btn.classList.remove('selected');
-        } else {
-            // 새로 선택 (최대 3개)
-            if (selectedGenres < MAX_GENRES) {
-                btn.classList.add('selected');
-            }
-        }
-        
-        // 카운트 업데이트
-        const newCount = genreContainer.querySelectorAll('.choice-btn.selected').length;
-        genreCountEl.textContent = `선택한 개수: ${newCount} / ${MAX_GENRES}`;
-        
-        // 3개 찼을 때 경고 (선택되지 않은 버튼 비활성화 느낌)
-        if (newCount >= MAX_GENRES) {
-            genreContainer.querySelectorAll('.choice-btn:not(.selected)').forEach(b => b.classList.add('opacity-50', 'cursor-not-allowed'));
-        } else {
-            genreContainer.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('opacity-50', 'cursor-not-allowed'));
-        }
-    });
-
-    // --- 유효성 검사 및 데이터 저장 ---
-
-    function validateAndSaveAllAnswers() {
-        let isValid = true;
-        userData = {}; // 데이터 객체 초기화
-        errorMessage.classList.add('hidden'); // 에러 메시지 초기화
-
-        // Q1: 닉네임
-        const nickname = document.getElementById('q1-nickname').value.trim();
-        if (nickname) {
-            userData.nickname = nickname;
-        } else {
-            showError("Q1. 닉네임을 입력해주세요.");
-            isValid = false;
+        if (formatChart) {
+            formatChart.destroy(); // 기존 차트 파괴
         }
 
-        // Q2: 나이
-        const ageSelected = document.querySelector('#q2-age .choice-btn.selected');
-        if (ageSelected && isValid) {
-            userData.age = ageSelected.dataset.value;
-        } else if (isValid) {
-            showError("Q2. 나이대를 선택해주세요.");
-            isValid = false;
-        }
-
-        // Q3: 빈도
-        const freqSelected = document.querySelector('#q3-frequency .choice-btn.selected');
-        if (freqSelected && isValid) {
-            userData.frequency = freqSelected.dataset.value;
-        } else if (isValid) {
-            showError("Q3. 독서 빈도를 선택해주세요.");
-            isValid = false;
-        }
-
-        // Q4: 목적
-        const purposeSelected = document.querySelector('#q4-purpose .choice-btn.selected');
-        if (purposeSelected && isValid) {
-            userData.purpose = purposeSelected.dataset.value;
-        } else if (isValid) {
-            showError("Q4. 독서 목적을 선택해주세요.");
-            isValid = false;
-        }
-
-        // Q5: 장르
-        const selectedGenres = Array.from(document.querySelectorAll('#q5-genre .choice-btn.selected'))
-                                    .map(btn => btn.dataset.value);
-        if (selectedGenres.length > 0 && isValid) {
-            userData.genres = selectedGenres;
-        } else if (isValid) {
-            showError("Q5. 선호 분야를 1개 이상 선택해주세요.");
-            isValid = false;
-        }
-        
-        // Q6: 형식
-        const formatSelected = document.querySelector('#q6-format .choice-btn.selected');
-        if (formatSelected && isValid) {
-            userData.format = formatSelected.dataset.value;
-        } else if (isValid) {
-            showError("Q6. 독서 형식을 선택해주세요.");
-            isValid = false;
-        }
-
-        // Q7: 인생책 (선택 사항)
-        if (isValid) {
-            userData.bookTitle = document.getElementById('q7-book-title').value.trim();
-            userData.bookReason = document.getElementById('q7-book-reason').value.trim();
-        }
-
-        if (!isValid) {
-            // 유효성 검사 실패 시 에러 메시지 영역으로 스크롤
-            errorMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-
-        return isValid;
-    }
-    
-    function showError(message) {
-        errorMessage.textContent = message;
-        errorMessage.classList.remove('hidden');
-    }
-
-
-    // --- 리포트 생성 ---
-
-    function generateReport(allResponses) {
-        console.log("Generating report with data:", allResponses);
-        const totalCount = allResponses.length;
-
-        // 1. 기본 정보 설정
-        document.getElementById('report-nickname').textContent = userData.nickname;
-        document.getElementById('total-participants').textContent = totalCount;
-        document.getElementById('my-frequency').textContent = userData.frequency;
-
-        // 데이터 집계
-        const ageFreqData = { '10대': {}, '20대': {}, '30대': {}, '40대 이상': {} };
-        const formatData = { '종이책': 0, '전자책': 0, '종이책 + 전자책': 0, '기타': 0 };
-        const genreData = {};
-        const freqData = { '월 1회 미만': 0, '월 1~2회': 0, '월 3~4회': 0, '주 1회 이상': 0 };
-        const bookBoardData = [];
-
-        const freqLabels = ['월 1회 미만', '월 1~2회', '월 3~4회', '주 1회 이상'];
-        const ageLabels = ['10대', '20대', '30대', '40대 이상'];
-        
-        // ageFreqData 초기화
-        ageLabels.forEach(age => {
-            freqLabels.forEach(freq => {
-                ageFreqData[age][freq] = 0;
-            });
-        });
-
-        allResponses.forEach(res => {
-            // 세대별 빈도
-            if (res.Age && res.Frequency && ageFreqData[res.Age] && ageFreqData[res.Age].hasOwnProperty(res.Frequency)) {
-                ageFreqData[res.Age][res.Frequency]++;
-            }
-            // 형식
-            if (res.Format && formatData.hasOwnProperty(res.Format)) {
-                formatData[res.Format]++;
-            }
-            // 빈도
-            if (res.Frequency && freqData.hasOwnProperty(res.Frequency)) {
-                freqData[res.Frequency]++;
-            }
-            // 장르 (배열)
-            // Apps Script (doGet)에서 이미 배열로 변환해줍니다.
-            if (res.Genres && Array.isArray(res.Genres)) {
-                res.Genres.forEach(genre => {
-                    genreData[genre] = (genreData[genre] || 0) + 1;
-                });
-            }
-            // 인생책
-            if (res.BookTitle) {
-                bookBoardData.push({
-                    nickname: res.Nickname || '익명',
-                    title: res.BookTitle,
-                    reason: res.BookReason || ''
-                });
-            }
-        });
-
-        // --- 차트 생성 ---
-        
-        // 기존 차트 파괴 (다시하기 대비)
-        Object.values(chartInstances).forEach(chart => chart.destroy());
-        chartInstances = {};
-
-        // 1. 나의 독서 빈도 vs 전체 (막대)
-        const freqCtx = document.getElementById('chart-my-freq').getContext('2d');
-        const myFreqColors = freqLabels.map(label => 
-            label === userData.frequency ? 'rgba(59, 130, 246, 1)' : 'rgba(209, 213, 219, 1)'
-        );
-        chartInstances.myFreq = new Chart(freqCtx, {
-            type: 'bar',
-            data: {
-                labels: freqLabels,
-                datasets: [{
-                    label: '전체 응답자 수',
-                    data: freqLabels.map(label => freqData[label]),
-                    backgroundColor: myFreqColors,
-                    borderColor: myFreqColors,
-                    borderWidth: 1
-                }]
-            },
+        formatChart = new Chart(formatChartCanvas, {
+            type: 'pie', // 기획안에 '원형 차트' 명시됨
+            data: chartData,
             options: {
-                indexAxis: 'y', // 가로 막대
                 responsive: true,
                 plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                let label = context.dataset.label || '';
-                                if (label) label += ': ';
-                                if (context.parsed.x !== null) label += context.parsed.x + '명';
-                                return label;
-                            }
-                        }
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: true,
+                        text: '독서 형식 선호도' // 차트 제목 변경
                     }
-                },
-                scales: {
-                    x: { beginAtZero: true, title: { display: true, text: '응답자 수 (명)' } },
                 }
             }
         });
-        
-        // 2. 세대별 독서 빈도 (그룹 막대)
-        const ageFreqCtx = document.getElementById('chart-age-freq').getContext('2d');
-        const ageColors = ['rgba(255, 99, 132, 0.7)', 'rgba(54, 162, 235, 0.7)', 'rgba(255, 206, 86, 0.7)', 'rgba(75, 192, 192, 0.7)'];
-        chartInstances.ageFreq = new Chart(ageFreqCtx, {
-            type: 'bar',
-            data: {
-                labels: freqLabels, // x축: 빈도
-                datasets: ageLabels.map((age, i) => ({
-                    label: age,
-                    data: freqLabels.map(freq => ageFreqData[age][freq] || 0), // 각 빈도에 해당하는 세대별 데이터
-                    backgroundColor: ageColors[i],
-                }))
-            },
-            options: {
-                responsive: true,
-                plugins: { legend: { position: 'top' } },
-                scales: {
-                    x: { title: { display: true, text: '독서 빈도' } },
-                    y: { beginAtZero: true, title: { display: true, text: '응답자 수 (명)' } }
-                }
-            }
-        });
+    };
 
-        // 3. 독서 형식 선호도 (파이)
-        const formatCtx = document.getElementById('chart-format').getContext('2d');
-        chartInstances.format = new Chart(formatCtx, {
-            type: 'pie',
-            data: {
-                labels: Object.keys(formatData),
-                datasets: [{
-                    data: Object.values(formatData),
-                    backgroundColor: ['rgba(255, 99, 132, 0.7)', 'rgba(54, 162, 235, 0.7)', 'rgba(255, 206, 86, 0.7)', 'rgba(75, 192, 192, 0.7)'],
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom' } }
-            }
-        });
+    // 폼 제출 이벤트 처리
+    recordForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitButton = e.target.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
+        submitButton.textContent = '제출 중...';
 
-        // 4. 장르별 인기 순위 (가로 막대)
-        const sortedGenres = Object.entries(genreData).sort(([,a], [,b]) => b - a);
-        const genreLabels = sortedGenres.map(item => item[0]);
-        const genreValues = sortedGenres.map(item => item[1]);
-        
-        const genreCtx = document.getElementById('chart-genre').getContext('2d');
-        chartInstances.genre = new Chart(genreCtx, {
-            type: 'bar',
-            data: {
-                labels: genreLabels,
-                datasets: [{
-                    label: '선택 수',
-                    data: genreValues,
-                    backgroundColor: 'rgba(107, 114, 128, 0.7)',
-                }]
-            },
-            options: {
-                indexAxis: 'y', // 가로 막대
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { beginAtZero: true },
-                }
-            }
-        });
+        const formData = new FormData(recordForm);
+        // 새 폼 필드에 맞게 data 객체 수정
+        const data = {
+            nickname: formData.get('nickname'),
+            age: formData.get('age'),
+            frequency: formData.get('frequency'),
+            purpose: formData.get('purpose'),
+            genre: formData.get('genre'),
+            format: formData.get('format'),
+            bookTitle: formData.get('bookTitle'),
+            bookReason: formData.get('bookReason')
+        };
 
-        // 5. 인생책 게시판
-        const bookBoardEl = document.getElementById('book-board');
-        bookBoardEl.innerHTML = ''; // 초기화
-        
-        if (bookBoardData.length === 0) {
-            bookBoardEl.innerHTML = '<p class="text-gray-500 text-center">아직 등록된 인생책이 없습니다.</p>';
-        } else {
-            // 최신순으로 정렬 (Apps Script doGet에서 이미 최신순으로 가져올 수 있지만, 만일을 대비해 JS에서도 정렬)
-            bookBoardData.reverse().forEach(book => {
-                const bookEl = document.createElement('div');
-                bookEl.className = 'bg-white p-4 rounded-lg shadow';
-                bookEl.innerHTML = `
-                    <h3 class="font-bold text-lg text-blue-700">${book.title} 
-                        <span class="text-sm font-normal text-gray-500">(by. ${book.nickname})</span>
-                    </h3>
-                    <p class="text-gray-700 mt-2 whitespace-pre-wrap">${book.reason}</p>
-                `;
-                bookBoardEl.appendChild(bookEl);
+        try {
+            const response = await fetch(WEB_APP_URL, {
+                method: 'POST',
+                mode: 'no-cors', // Apps Script는 no-cors 모드 또는 복잡한 CORS 설정이 필요할 수 있습니다.
+                cache: 'no-cache',
+                redirect: 'follow',
+                body: JSON.stringify(data)
             });
+
+            // no-cors 모드에서는 응답을 직접 읽을 수 없으므로, 성공적으로 전송되었다고 가정합니다.
+            alert('성공적으로 제출되었습니다! 감사합니다.');
+            recordForm.reset();
+            // 날짜 리셋 코드 제거
+            loadRecords(); // 데이터 다시 불러오기
+
+        } catch (error) {
+            console.error('Error submitting record:', error);
+            alert('제출에 실패했습니다. 인터넷 연결을 확인하세요.');
+        } finally {
+            submitButton.disabled = false;
+            submitButton.textContent = '나의 리포트 제출하기';
         }
-    }
+    });
 
-    // --- 초기화 ---
-    showPage('start'); // 앱 로드 시 시작 페이지 표시
+    // 엑셀 내보내기 이벤트 처리
+    exportButton.addEventListener('click', () => {
+        if (recordsCache.length === 0) {
+            alert('내보낼 데이터가 없습니다.');
+            return;
+        }
+
+        // 데이터 시트 생성
+        const worksheet = XLSX.utils.json_to_sheet(recordsCache);
+        // 새 워크북 생성
+        const workbook = XLSX.utils.book_new();
+        // 워크북에 데이터 시트 추가
+        XLSX.utils.book_append_sheet(workbook, worksheet, "리딩맵 응답"); // 시트 이름 변경
+
+        // 헤더 스타일링 (선택 사항)
+        if (recordsCache.length > 0) {
+            const headers = Object.keys(recordsCache[0]);
+            const header_styles = { font: { bold: true } };
+            for(let i = 0; i < headers.length; i++){
+                const cell_ref = XLSX.utils.encode_cell({c:i, r:0});
+                if(worksheet[cell_ref]) {
+                    worksheet[cell_ref].s = header_styles;
+                }
+            }
+        }
+
+        // 엑셀 파일 내보내기 (파일명 변경)
+        XLSX.writeFile(workbook, "reading_map_records.xlsx");
+    });
+
+    // 초기 데이터 로드
+    loadRecords();
 });
-
