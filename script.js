@@ -55,7 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
         row.innerHTML = `
             <div class="record-nickname">${record.nickname || '-'}</div>
             <div class="record-book-title" title="${record.bookTitle}">${record.bookTitle || '-'}</div>
-            <div class="record-book-reason" title="${record.bookReason}">${record.bookReason || '-'}</div>
             <div class="record-age">${record.age || '-'}</div>
             <div class="record-frequency">${record.frequency || '-'}</div>
         `;
@@ -203,7 +202,6 @@ document.addEventListener('DOMContentLoaded', () => {
             genre: formData.get('genre'),
             format: formData.get('format'),
             bookTitle: formData.get('bookTitle'),
-            bookReason: formData.get('bookReason')
         };
 
         try {
