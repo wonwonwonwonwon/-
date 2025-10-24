@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         row.classList.add('record-row');
         row.innerHTML = `
             <div class="record-nickname">${record.nickname || '-'}</div>
-            <div class="record-book-title" title="${record.bookTitle}">${record.bookTitle || '-'}</div>
+            <div class="record-book-title">${record.bookTitle || '-'}</div>
             <div class="record-age">${record.age || '-'}</div>
             <div class="record-frequency">${record.frequency || '-'}</div>
         `;
@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
             datasets: [{
                 label: '독서 형식',
                 data: Object.values(formatCounts),
-                backgroundColor: ['#FFC107', '#FF7043', '#8BC34A', '#2196F3'],
+                backgroundColor: ['#e0c369', '#e97e5e', '#4263dd', '#efd5c0'],
                 hoverOffset: 4
             }]
         };
@@ -109,9 +109,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 label: '장르',
                 data: Object.values(genreCounts),
                 backgroundColor: [
-                    '#FFC107', '#FF7043', '#8BC34A', '#2196F3', '#9C27B0', 
-                    '#00BCD4', '#FF5722', '#673AB7', '#E91E63', '#4CAF50',
-                    '#FF9800', '#03A9F4', '#CDDC39', '#795548'
+                    '#e0c369', '#e97e5e', '#4263dd', '#efd5c0', '#e5b4d0', 
+                    '#899d35', '#6a77b1', '#96a2a7', '#9bc3d7', '#e79a43',
+                    '#ab8839', '#df8691', '#dbde6b', '#795548'
                 ],
                 hoverOffset: 4
             }]
@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // 3. 색상 할당
-        const colors = ['#2196F3', '#8BC34A', '#FFC107', '#FF7043'];
+        const colors = ['#e0c369', '#e97e5e', '#4263dd', '#efd5c0'];
         datasets.forEach((ds, index) => {
             ds.backgroundColor = colors[index % colors.length];
         });

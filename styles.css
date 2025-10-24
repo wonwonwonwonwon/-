@@ -1,9 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
 
 :root {
-    --primary-color: #FFC107; /* Amber */
-    --secondary-color: #FFAB91; /* Light Pastel Coral */
-    --background-color: #FFF8E1; /* Light Cream */
+    --primary-color: #c57589; /* Amber */
+    --secondary-color: #5e2738; /* Light Pastel Coral */
+    --background-color: #ccd18c; /* Light Cream */
     --card-background: #FFFFFF;
     --text-color: #424242;
     --border-color: #E0E0E0;
@@ -31,7 +31,8 @@ body {
 
 header {
     text-align: center;
-    margin-bottom: 40px;
+    margin-top: 50px;
+    margin-bottom: 100px;
 }
 
 header h1 {
