@@ -272,7 +272,6 @@ footer {
 
     .record-nickname::before { content: '닉네임: '; }
     .record-book-title::before { content: '책 제목: '; }
-    .record-book-reason::before { content: '추천 이유: '; }
     .record-age::before { content: '나이대: '; }
     .record-frequency::before { content: '독서 빈도: '; }
 
