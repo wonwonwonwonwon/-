@@ -5,12 +5,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const recordForm = document.getElementById('record-form');
     const recordsContainer = document.getElementById('records-container');
     const exportButton = document.getElementById('export-excel');
-    // 캔버스 ID 변경 (mood-chart -> format-chart)
+    
+    // ▼▼▼ 3개의 차트 캔버스 및 변수 정의 ▼▼▼
     const formatChartCanvas = document.getElementById('format-chart');
+    const genreChartCanvas = document.getElementById('genre-chart');
+    const ageFrequencyChartCanvas = document.getElementById('age-frequency-chart');
+    
     let recordsCache = []; // 데이터 캐싱
-    let formatChart; // 차트 변수명 변경
-
-    // 페이지 로드 시 날짜 설정 관련 코드 제거 (새 폼에는 날짜 필드 없음)
+    
+    let formatChart;
+    let genreChart;
+    let ageFrequencyChart;
+    // ▲▲▲ 3개의 차트 캔버스 및 변수 정의 ▲▲▲
 
     // 데이터 로드 및 화면 업데이트
     const loadRecords = async () => {
@@ -19,35 +25,33 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             recordsCache = await response.json();
 
-            // 서버에서 받은 데이터가 배열인지 확인합니다. 배열이 아니면 Apps Script 에러일 가능성이 높습니다.
             if (!Array.isArray(recordsCache)) {
                 console.error("Error data received from Google Apps Script:", recordsCache);
                 throw new Error('Google Apps Script에서 에러가 발생했습니다. 개발자 도구(F12)의 Console 탭에서 상세 정보를 확인하세요.');
             }
             
             recordsContainer.innerHTML = '<p>데이터를 불러오는 중...</p>';
-            // 최신순으로 정렬 (Timestamp는 Google Sheet에서 자동 생성된다고 가정)
             recordsCache.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
             
-            recordsContainer.innerHTML = ''; // 로딩 메시지 제거
-            // '인생책'을 기재한 응답만 게시판에 표시 (선택 사항)
+            recordsContainer.innerHTML = '';
             recordsCache.filter(r => r.bookTitle && r.bookTitle !== '없음').forEach(addRecordToDOM);
-            // 전체 데이터를 차트에 렌더링
-            renderFormatChart(); // 함수명 변경
+            
+            // ▼▼▼ 3개의 차트 모두 렌더링 ▼▼▼
+            renderFormatChart();
+            renderGenreChart();
+            renderAgeFrequencyChart();
+            // ▲▲▲ 3개의 차트 모두 렌더링 ▲▲▲
 
         } catch (error) {
             console.error('Error loading records:', error);
-            recordsContainer.innerHTML = `<p style="color: red;">데이터를 불러오는 데 실패했습니다. README.md 파일을 확인하여 설정을 완료했는지 확인하세요.</p>`;
+            recordsContainer.innerHTML = `<p style="color: red;">데이터를 불러오는 데 실패했습니다. Google Sheet 헤더와 Apps Script(Code.gs)가 올바르게 수정되었는지 확인하세요.</p>`;
         }
     };
 
-    // DOM에 기록 목록 행 추가 (인생책 게시판용으로 수정)
+    // DOM에 기록 목록 행 추가 (인생책 게시판용)
     const addRecordToDOM = (record) => {
         const row = document.createElement('div');
         row.classList.add('record-row');
-
-        // 새 기획안에 맞게 표시할 데이터로 변경
-        // (record.nickname, record.bookTitle, record.bookReason, record.age, record.frequency)
         row.innerHTML = `
             <div class="record-nickname">${record.nickname || '-'}</div>
             <div class="record-book-title" title="${record.bookTitle}">${record.bookTitle || '-'}</div>
@@ -58,11 +62,10 @@ document.addEventListener('DOMContentLoaded', () => {
         recordsContainer.appendChild(row);
     };
 
-    // '독서 형식 선호도' 통계 차트 렌더링 (기존 renderMoodChart에서 수정)
+    // '독서 형식 선호도' 통계 차트 (원형)
     const renderFormatChart = () => {
-        // record.Mood 대신 record.format 기준으로 카운트
         const formatCounts = recordsCache.reduce((acc, record) => {
-            if (record.format) { // 데이터가 있는 경우에만
+            if (record.format) {
                 acc[record.format] = (acc[record.format] || 0) + 1;
             }
             return acc;
@@ -73,34 +76,118 @@ document.addEventListener('DOMContentLoaded', () => {
             datasets: [{
                 label: '독서 형식',
                 data: Object.values(formatCounts),
-                backgroundColor: ['#FFC107', '#FF7043', '#8BC34A', '#2196F3', '#9C27B0'],
+                backgroundColor: ['#FFC107', '#FF7043', '#8BC34A', '#2196F3'],
                 hoverOffset: 4
             }]
         };
 
-        if (formatChart) {
-            formatChart.destroy(); // 기존 차트 파괴
-        }
-
+        if (formatChart) formatChart.destroy();
         formatChart = new Chart(formatChartCanvas, {
-            type: 'pie', // 기획안에 '원형 차트' 명시됨
+            type: 'pie',
             data: chartData,
             options: {
                 responsive: true,
                 plugins: {
-                    legend: {
-                        position: 'top',
-                    },
-                    title: {
-                        display: true,
-                        text: '독서 형식 선호도' // 차트 제목 변경
-                    }
+                    legend: { position: 'top' },
+                    title: { display: false } // HTML에서 h3로 제목 표시
                 }
             }
         });
     };
 
-    // 폼 제출 이벤트 처리
+    // ▼▼▼ [신규] 장르별 인기 비율 차트 (원형) ▼▼▼
+    const renderGenreChart = () => {
+        const genreCounts = recordsCache.reduce((acc, record) => {
+            if (record.genre) {
+                acc[record.genre] = (acc[record.genre] || 0) + 1;
+            }
+            return acc;
+        }, {});
+
+        const chartData = {
+            labels: Object.keys(genreCounts),
+            datasets: [{
+                label: '장르',
+                data: Object.values(genreCounts),
+                backgroundColor: [
+                    '#FFC107', '#FF7043', '#8BC34A', '#2196F3', '#9C27B0', 
+                    '#00BCD4', '#FF5722', '#673AB7', '#E91E63', '#4CAF50',
+                    '#FF9800', '#03A9F4', '#CDDC39', '#795548'
+                ],
+                hoverOffset: 4
+            }]
+        };
+
+        if (genreChart) genreChart.destroy();
+        genreChart = new Chart(genreChartCanvas, {
+            type: 'pie',
+            data: chartData,
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'top' },
+                    title: { display: false } // HTML에서 h3로 제목 표시
+                }
+            }
+        });
+    };
+    // ▲▲▲ [신규] 장르별 인기 비율 차트 ▲▲▲
+
+
+    // ▼▼▼ [신규] 세대별 독서 빈도 차트 (막대) ▼▼▼
+    const renderAgeFrequencyChart = () => {
+        const ageGroups = ['10대', '20대', '30대', '40대 이상'];
+        const frequencies = ['월 1회 미만', '월 1~2회', '월 3~4회', '주 1회 이상'];
+        
+        // 1. 데이터 가공
+        const dataByAge = recordsCache.reduce((acc, record) => {
+            if (record.age && record.frequency) {
+                if (!acc[record.age]) acc[record.age] = {};
+                acc[record.age][record.frequency] = (acc[record.age][record.frequency] || 0) + 1;
+            }
+            return acc;
+        }, {});
+
+        // 2. Chart.js 데이터셋 형식으로 변환 (그룹 막대 차트용)
+        const datasets = frequencies.map(freq => {
+            return {
+                label: freq,
+                data: ageGroups.map(age => dataByAge[age]?.[freq] || 0),
+            };
+        });
+
+        // 3. 색상 할당
+        const colors = ['#2196F3', '#8BC34A', '#FFC107', '#FF7043'];
+        datasets.forEach((ds, index) => {
+            ds.backgroundColor = colors[index % colors.length];
+        });
+
+        const chartData = {
+            labels: ageGroups,
+            datasets: datasets
+        };
+
+        if (ageFrequencyChart) ageFrequencyChart.destroy();
+        ageFrequencyChart = new Chart(ageFrequencyChartCanvas, {
+            type: 'bar',
+            data: chartData,
+            options: {
+                responsive: true,
+                scales: {
+                    x: { stacked: false }, // false = 그룹 막대, true = 누적 막대
+                    y: { stacked: false, beginAtZero: true }
+                },
+                plugins: {
+                    legend: { position: 'top' },
+                    title: { display: false } // HTML에서 h3로 제목 표시
+                }
+            }
+        });
+    };
+    // ▲▲▲ [신규] 세대별 독서 빈도 차트 ▲▲▲
+
+
+    // 폼 제출 이벤트 처리 (이전과 동일)
     recordForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const submitButton = e.target.querySelector('button[type="submit"]');
@@ -108,7 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
         submitButton.textContent = '제출 중...';
 
         const formData = new FormData(recordForm);
-        // 새 폼 필드에 맞게 data 객체 수정
         const data = {
             nickname: formData.get('nickname'),
             age: formData.get('age'),
@@ -121,18 +207,19 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
+            // 'no-cors' 모드는 POST 성공 여부를 정확히 알 수 없습니다.
+            // 위 2단계에서 Code.gs를 수정했다면, mode를 삭제하고 CORS 응답을 받는 것이 더 좋습니다.
+            // 하지만 기존 코드 유지를 위해 'no-cors'를 유지합니다.
             const response = await fetch(WEB_APP_URL, {
                 method: 'POST',
-                mode: 'no-cors', // Apps Script는 no-cors 모드 또는 복잡한 CORS 설정이 필요할 수 있습니다.
+                mode: 'no-cors', 
                 cache: 'no-cache',
                 redirect: 'follow',
                 body: JSON.stringify(data)
             });
 
-            // no-cors 모드에서는 응답을 직접 읽을 수 없으므로, 성공적으로 전송되었다고 가정합니다.
             alert('성공적으로 제출되었습니다! 감사합니다.');
             recordForm.reset();
-            // 날짜 리셋 코드 제거
             loadRecords(); // 데이터 다시 불러오기
 
         } catch (error) {
@@ -144,21 +231,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 엑셀 내보내기 이벤트 처리
+    // 엑셀 내보내기 이벤트 처리 (이전과 동일)
     exportButton.addEventListener('click', () => {
         if (recordsCache.length === 0) {
             alert('내보낼 데이터가 없습니다.');
             return;
         }
-
-        // 데이터 시트 생성
         const worksheet = XLSX.utils.json_to_sheet(recordsCache);
-        // 새 워크북 생성
         const workbook = XLSX.utils.book_new();
-        // 워크북에 데이터 시트 추가
-        XLSX.utils.book_append_sheet(workbook, worksheet, "리딩맵 응답"); // 시트 이름 변경
+        XLSX.utils.book_append_sheet(workbook, worksheet, "리딩맵 응답");
 
-        // 헤더 스타일링 (선택 사항)
         if (recordsCache.length > 0) {
             const headers = Object.keys(recordsCache[0]);
             const header_styles = { font: { bold: true } };
@@ -169,8 +251,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-
-        // 엑셀 파일 내보내기 (파일명 변경)
         XLSX.writeFile(workbook, "reading_map_records.xlsx");
     });
 
